@@ -1,0 +1,121 @@
+#!/usr/bin/perl -w
+
+use strict;
+use utf8;
+use open ':std', ':encoding(UTF-8)';
+use Mojolicious::Lite;
+use JSON;
+use FindBin qw($Bin);
+use File::Slurp qw/read_file/;
+use Data::Dumper;
+use NetAddr::IP;
+
+use feature qw( switch );
+no if $] >= 5.018, warnings => qw( experimental::smartmatch );
+
+sub read_host {
+	my ($id) = @_;
+
+	$id =~ s/^[^a-z0-9\-]+$//i;
+
+	my $config=from_json(read_file($Bin . "/hosts/" . $id . ".json"),
+			{ utf8  => 1 } );
+
+	return $config;
+}
+
+sub read_config {
+	my $config=from_json(read_file($Bin . "/config.json"),
+			{ utf8  => 1 } );
+
+	return $config;
+}
+
+sub update {
+	my ($self, $config, $host, $mode, $source, $addr) = @_;
+
+	my $zoneconf=$config->{zones}{$host->{zone}};
+	if (!defined($zoneconf)) {
+		return { result => "could not find zone config" };
+	}
+
+	if ($source =~ /request/) {
+		$addr=$self->tx->remote_address;
+	}
+
+	my $ip=NetAddr::IP->new($addr);
+
+	if ($mode =~ /v4/ && $ip->version() ne 4) {
+		return { result => "v4 update but not v4 address" };
+	}
+	if ($mode =~ /v6/ && $ip->version() ne 6) { 
+		return { result => "v6 update but not v6 address" };
+	}
+
+	my @cmd;
+	push @cmd, sprintf("server %s", $zoneconf->{server} // "localhost");
+	push @cmd, sprintf("zone %s", $host->{zone});
+
+	given($mode) {
+		when(/^v[46]$/) {
+			push @cmd, sprintf("update delete %s.%s", $host->{hostname}, $host->{zone});
+		}
+		when(/^v4only$/) {
+			push @cmd, sprintf("update delete %s.%s IN A", $host->{hostname}, $host->{zone});
+		}
+		when(/^v6only$/) {
+			push @cmd, sprintf("update delete %s.%s IN AAAA", $host->{hostname}, $host->{zone});
+		}
+
+	}	
+	push @cmd, "send";
+
+	if ($ip->version() eq 4) {
+		push @cmd, sprintf("update add %s.%s 60 in a %s",
+			$host->{hostname}, $host->{zone}, $ip->addr());
+	} elsif($ip->version() eq 6) {
+		push @cmd, sprintf("update add %s.%s 60 in aaaa %s",
+			$host->{hostname}, $host->{zone}, $ip->addr());
+	}
+	push @cmd, "send";
+	push @cmd, "quit";
+
+	nsupdate_run(\@cmd, $config->{nsupdate}, $zoneconf->{key});
+
+	return { result => "done", address => $ip->addr() };
+}
+
+sub nsupdate_run {
+	my ($cmds, $nsupdate, $key) = @_;
+
+	my $pid = open(my $kid,   "|-") // die "Can't fork: $!";
+	if ($pid) {
+		foreach my $line ( @{$cmds} ) {
+			print STDERR $line;
+			print $kid $line . "\n";
+		}
+	} else {
+		exec(sprintf("%s -y %s", $nsupdate // "/usr/bin/nsupdate", $key));
+	}
+}
+
+# /v1/update/7e8ba4cf-cdf6-495e-905b-c8fef39e8ae7/v4only/request
+get '/v1/update/:id/:mode/:source/:addr' => sub {
+	my $self = shift;
+
+	my $config=read_config();
+	my $host=read_host($self->param("id"));
+
+	if (!defined($host)) {
+		printf(STDERR "Could not find config for %s\n", $self->param("id"));
+		return $self->reply->not_found	
+	}
+	
+	my $status=update($self, $config, $host, 
+		$self->param("mode"), $self->param("source"), $self->param("addr"));
+
+	$self->render(json => $status);
+};
+
+app->renderer->default_format('json');
+app->start("fastcgi");

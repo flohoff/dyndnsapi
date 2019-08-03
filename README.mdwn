@@ -1,0 +1,74 @@
+
+Adding a host
+=============
+
+Create a uuid and a json config file like this
+
+	uuidgen
+	67f9a2ff-9f3f-43cc-9429-299486c781d0
+	echo '{ "zone": "dynamic.uucico.de", "hostname": "sid" }' >hosts/67f9a2ff-9f3f-43cc-9429-299486c781d0.json
+
+Now the host *sid.dynamic.uucico.de* may be modified with:
+
+    curl -6 https://dynamic.uucico.de/dyndns/v1/update/67f9a2ff-9f3f-43cc-9429-299486c781d0/v6/request/0.0.0.0
+
+Modes of record manipulation
+============================
+
+The url consists of
+
+	/v1/update/<uuid>/<mode>/<source>/<address>
+
+- uuid has to match the file in the the hosts directory
+- mode is 
+  - v6		Deletes all records and adds a v6 record
+  - v6only	Updates only the v6 record and ignores others
+  - v4 		Deletes all records and adds a v4 record
+  - v4only	Deletes only the v4 record and ignores others
+- source is
+  - request	Take address from the Webservers REMOTE_ADDRESS
+
+- address could be a manual address to be set
+
+
+Installation
+============
+
+dyndns config
+-------------
+
+You need to create a config with all zones which are updateable with server server and
+key:
+
+	{
+		"zones": {
+			"dynamic.uucico.de": {
+				"server": "localhost",
+				"key": "hmac-md5:uucicoupdate:Jkhjdiuh787sJKsha=="
+			}
+		}
+	}
+
+
+Apache config
+-------------
+
+    ScriptAlias /dyndns/ /var/www/dyndns/dyndns/
+    <Location /dyndns/>
+        Options ExecCGI
+        SetHandler fcgid-script
+    </Location>	
+
+Bind config
+-----------
+
+You will need to add a dynamic updateable zone with a key. This key needs to be in the *config.js* aswell.
+
+    zone "dynamic.uucico.de." {
+        type master;
+        file "dynamic/dynamic.uucico.de";
+        
+        allow-update { key uucicoupdate; };
+        allow-query { any; };
+    };
+    
