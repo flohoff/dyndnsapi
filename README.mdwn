@@ -12,6 +12,12 @@ Now the host *sid.dynamic.uucico.de* may be modified with:
 
     curl -6 https://dynamic.uucico.de/dyndns/v1/update/67f9a2ff-9f3f-43cc-9429-299486c781d0/v6/request/0.0.0.0
 
+Options may be removed e.g. 
+
+    curl -4 https://dynamic.uucico.de/dyndns/v1/update/67f9a2ff-9f3f-43cc-9429-299486c781d0/v4
+
+Will update the v4 record from the REQUESTS address and remove everything else.
+
 Modes of record manipulation
 ============================
 
