@@ -68,7 +68,6 @@ sub update {
 		}
 
 	}	
-	push @cmd, "send";
 
 	if ($ip->version() eq 4) {
 		push @cmd, sprintf("update add %s.%s 60 in a %s",
@@ -100,7 +99,7 @@ sub nsupdate_run {
 }
 
 # /v1/update/7e8ba4cf-cdf6-495e-905b-c8fef39e8ae7/v4only/request
-get '/v1/update/:id/:mode/#source/#addr' => { source => 'request', addr => '0.0.0.0' } => sub {
+get '/v1/update/:id/:mode/#source/#addr' => { mode => 'v4', source => 'request', addr => '0.0.0.0' } => sub {
 	my $self = shift;
 
 	my $config=read_config();
