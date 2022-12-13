@@ -32,7 +32,7 @@ sub read_config {
 }
 
 sub update {
-	my ($self, $config, $host, $mode, $source, $addr) = @_;
+	my ($self, $config, $host, $hostname, $mode, $source, $addr) = @_;
 
 	my $zoneconf=$config->{zones}{$host->{zone}};
 	if (!defined($zoneconf)) {
@@ -58,13 +58,13 @@ sub update {
 
 	given($mode) {
 		when(/^v[46]$/) {
-			push @cmd, sprintf("update delete %s.%s", $host->{hostname}, $host->{zone});
+			push @cmd, sprintf("update delete %s.%s", $hostname, $host->{zone});
 		}
 		when(/^v4only$/) {
-			push @cmd, sprintf("update delete %s.%s IN A", $host->{hostname}, $host->{zone});
+			push @cmd, sprintf("update delete %s.%s IN A", $hostname, $host->{zone});
 		}
 		when(/^v6only$/) {
-			push @cmd, sprintf("update delete %s.%s IN AAAA", $host->{hostname}, $host->{zone});
+			push @cmd, sprintf("update delete %s.%s IN AAAA", $hostname, $host->{zone});
 		}
 
 	}	
@@ -72,10 +72,10 @@ sub update {
 
 	if ($ip->version() eq 4) {
 		push @cmd, sprintf("update add %s.%s 60 in a %s",
-			$host->{hostname}, $host->{zone}, $ip->addr());
+			$hostname, $host->{zone}, $ip->addr());
 	} elsif($ip->version() eq 6) {
 		push @cmd, sprintf("update add %s.%s 60 in aaaa %s",
-			$host->{hostname}, $host->{zone}, $ip->addr());
+			$hostname, $host->{zone}, $ip->addr());
 	}
 	push @cmd, "send";
 	push @cmd, "quit";
@@ -111,11 +111,49 @@ get '/v1/update/:id/:mode/#source/#addr' => { source => 'request', addr => '0.0.
 		return $self->reply->not_found	
 	}
 	
-	my $status=update($self, $config, $host, 
+	my $status=update($self, $config, $host, $host->{hostname},
 		$self->param("mode"), $self->param("source"), $self->param("addr"));
 
 	$self->render(json => $status);
 };
+
+# V2 changes - You may send the hostname to update
+get '/v2/update/:id/:mode/#hostname/#source/#addr' => { source => 'request', addr => '0.0.0.0' } => sub {
+	my $self = shift;
+
+	my $config=read_config();
+	my $host=read_host($self->param("id"));
+
+	if (!defined($host)) {
+		printf(STDERR "Could not find config for %s\n", $self->param("id"));
+		return $self->reply->not_found;
+	}
+
+	my $hostname=$self->param("hostname");
+	if (defined($hostname)) {
+		if ($hostname !~ /^[a-z0-9\.\-]+$/) {
+			return $self->reply->not_found;
+		}
+
+		if (!defined($host->{hostregexp})) {
+			return $self->reply->not_found;
+		}
+
+		my $hr=$host->{hostregexp};
+
+		if ($hostname !~ /$hr/) {
+			return $self->reply->not_found;
+		}
+	} else {
+		$hostname=$host->{hostname};
+	}
+
+	my $status=update($self, $config, $host, $hostname,
+		$self->param("mode"), $self->param("source"), $self->param("addr"));
+
+	$self->render(json => $status);
+};
+
 
 app->renderer->default_format('json');
 app->start("fastcgi");
