@@ -115,5 +115,33 @@ get '/v1/update/:id/:mode/#source/#addr' => { mode => 'v4', source => 'request',
 	$self->render(json => $status);
 };
 
+# /v1/update/7e8ba4cf-cdf6-495e-905b-c8fef39e8ae7/all/192.168.178.1/foo
+get '/v1/updateall/:id/#v4addr/#v6addr/' => sub {
+	my $self = shift;
+
+	my $config=read_config();
+	my $host=read_host($self->param("id"));
+
+	if (!defined($host)) {
+		printf(STDERR "Could not find config for %s\n", $self->param("id"));
+		return $self->reply->not_found	
+	}
+
+	my $status={};
+	if (defined($self->param("v4addr"))) {
+		$status->{v4}=update($self, $config, $host, 
+			"v4", "uri", $self->param("v4addr"));
+	}
+
+	if (defined($self->param("v6addr"))) {
+		$status->{v6}=update($self, $config, $host, 
+			"v6only", "uri", $self->param("v6addr"));
+	}
+
+	$self->render(json => $status);
+};
+
+
+
 app->renderer->default_format('json');
 app->start("fastcgi");
