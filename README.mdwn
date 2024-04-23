@@ -36,6 +36,17 @@ The url consists of
 
 - address could be a manual address to be set
 
+FritzBox usage
+===============
+
+The Fritz!Box supports commercial DynDNS offerings but it works with
+this setup aswell. Use a string like this. The Fritz!Box will replace
+the **<ipaddr>** and **<ip6addr>** with the correct ip addresses.
+
+	https://dynamic.uucico.de/dyndns/v1/updateall/youruuid/<ipaddr>/<ip6addr>/
+
+The Fritz!Box Web GUI has fields for Domainname, Username and Password which may not be
+empty. So put anything in there. The code will ignore it.
 
 Installation
 ============
