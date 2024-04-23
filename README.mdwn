@@ -88,8 +88,3 @@ You will need to add a dynamic updateable zone with a key. This key needs to be 
         allow-update { key uucicoupdate; };
         allow-query { any; };
     };
-    
-Fritz!Box URI
-=============
-
-	https://dynamic.uucico.de/dyndns/v1/updateall/__YOUR_UUID__/<ipaddr>/<ip6addr>/
